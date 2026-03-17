@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>浏览器多开管理器</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header glass-card">
+        <div>
+          <h1>浏览器多开管理器</h1>
+          <p>管理浏览器实例，配置独立数据目录，并一键启动指定页面</p>
+        </div>
+        <div class="chip" id="storageSummary">未设置存储目录</div>
+      </header>
+
+      <main class="layout">
+        <section class="panel glass-card">
+          <h2>全局设置</h2>
+          <label class="field-label">浏览器数据存储路径</label>
+          <div class="inline-group">
+            <input id="dataRootPath" type="text" placeholder="请选择存储目录" />
+            <button id="pickDataRootPath" class="btn secondary">选择目录</button>
+          </div>
+
+          <h2 class="section-title">浏览器配置</h2>
+          <div class="form-grid">
+            <label class="field">
+              <span>名称</span>
+              <input id="browserName" type="text" placeholder="例如：Chrome 工作环境" />
+            </label>
+            <label class="field field-wide">
+              <span>浏览器可执行文件路径</span>
+              <div class="inline-group">
+                <input id="executablePath" type="text" placeholder="请选择浏览器可执行文件" />
+                <button id="detectKernel" class="btn secondary">查询本机内核</button>
+                <button id="pickExecutablePath" class="btn secondary">选择文件</button>
+                <button id="installKernel" class="btn secondary">安装内置 Chromium 内核</button>
+              </div>
+              <div id="installProgress" class="install-progress hidden">
+                <div class="install-progress-track">
+                  <div id="installProgressFill" class="install-progress-fill"></div>
+                </div>
+                <div id="installProgressText" class="install-progress-text">准备安装...</div>
+              </div>
+            </label>
+            <label class="field field-wide">
+              <span>启动页面 URL</span>
+              <input id="startUrl" type="text" placeholder="例如：https://www.example.com" />
+            </label>
+          </div>
+
+          <div class="action-row">
+            <button id="saveBrowser" class="btn primary">保存配置</button>
+            <button id="resetForm" class="btn secondary">清空表单</button>
+          </div>
+          <p id="statusMessage" class="status"></p>
+        </section>
+
+        <section class="panel glass-card">
+          <div class="panel-title">
+            <h2>浏览器列表</h2>
+            <span id="browserCount">0 个配置</span>
+          </div>
+          <div id="browserList" class="browser-list"></div>
+        </section>
+      </main>
+    </div>
+    <script src="./renderer.js"></script>
+  </body>
+  </html>

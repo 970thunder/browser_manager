@@ -1,0 +1,53 @@
+{
+  "name": "browser-manager",
+  "version": "1.0.0",
+  "description": "桌面浏览器多开管理器",
+  "productName": "BrowserManager",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "check:syntax": "node --check main.js && node --check preload.js && node --check renderer.js",
+    "build:mac": "electron-builder --mac",
+    "build:mac:pkg": "electron-builder --mac pkg",
+    "build:win": "electron-builder --win nsis"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@puppeteer/browsers": "^2.10.2"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.sunny.browsermanager",
+    "productName": "BrowserManager",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "styles.css",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip",
+        "pkg"
+      ],
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
+}
