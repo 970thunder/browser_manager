@@ -12,6 +12,8 @@ jobs:
   build-mac:
     name: Build (macOS)
     runs-on: macos-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,6 +33,8 @@ jobs:
   build-win:
     name: Build (Windows)
     runs-on: windows-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
