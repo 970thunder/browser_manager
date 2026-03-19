@@ -2,6 +2,7 @@ const state = {
   config: {
     dataRootPath: '',
     defaultExecutablePath: '',
+    proxyApiUrl: '',
     browsers: []
   },
   editingBrowserId: '',
@@ -17,10 +18,16 @@ const state = {
 };
 
 const refs = {
-  dataRootPath: document.getElementById('dataRootPath'),
-  pickDataRootPath: document.getElementById('pickDataRootPath'),
   storageSummary: document.getElementById('storageSummary'),
+  openSettings: document.getElementById('openSettings'),
+  settingsOverlay: document.getElementById('settingsOverlay'),
+  closeSettings: document.getElementById('closeSettings'),
+  saveSettings: document.getElementById('saveSettings'),
+  settingsDataRootPath: document.getElementById('settingsDataRootPath'),
+  settingsPickDataRootPath: document.getElementById('settingsPickDataRootPath'),
+  settingsProxyApiUrl: document.getElementById('settingsProxyApiUrl'),
   browserName: document.getElementById('browserName'),
+  enableProxy: document.getElementById('enableProxy'),
   executablePath: document.getElementById('executablePath'),
   detectKernel: document.getElementById('detectKernel'),
   pickExecutablePath: document.getElementById('pickExecutablePath'),
@@ -50,6 +57,29 @@ const toDisplayPath = (value) => {
 
 const renderStorageSummary = () => {
   refs.storageSummary.textContent = `数据目录：${toDisplayPath(state.config.dataRootPath)}`;
+};
+
+const openSettings = () => {
+  refs.settingsOverlay.classList.remove('hidden');
+  refs.settingsOverlay.setAttribute('aria-hidden', 'false');
+  refs.settingsDataRootPath.value = state.config.dataRootPath || '';
+  refs.settingsProxyApiUrl.value = state.config.proxyApiUrl || '';
+};
+
+const closeSettings = () => {
+  refs.settingsOverlay.classList.add('hidden');
+  refs.settingsOverlay.setAttribute('aria-hidden', 'true');
+};
+
+const setActiveSettingsTab = (tab) => {
+  const items = Array.from(refs.settingsOverlay.querySelectorAll('.nav-item'));
+  const tabs = Array.from(refs.settingsOverlay.querySelectorAll('.tab'));
+  for (const item of items) {
+    item.classList.toggle('active', item.dataset.tab === tab);
+  }
+  for (const panel of tabs) {
+    panel.classList.toggle('active', panel.id === `tab-${tab}`);
+  }
 };
 
 const renderKernelLookupState = () => {
@@ -142,6 +172,7 @@ const resetForm = () => {
   refs.browserName.value = '';
   refs.executablePath.value = state.config.defaultExecutablePath || '';
   refs.startUrl.value = '';
+  refs.enableProxy.checked = false;
   refs.saveBrowser.textContent = '保存配置';
 };
 
@@ -150,6 +181,7 @@ const fillForm = (browser) => {
   refs.browserName.value = browser.name;
   refs.executablePath.value = browser.executablePath;
   refs.startUrl.value = browser.startUrl || '';
+  refs.enableProxy.checked = Boolean(browser.enableProxy);
   refs.saveBrowser.textContent = '更新配置';
 };
 
@@ -201,6 +233,7 @@ const upsertBrowser = () => {
   const name = refs.browserName.value.trim();
   const executablePath = refs.executablePath.value.trim();
   const startUrl = refs.startUrl.value.trim();
+  const enableProxy = Boolean(refs.enableProxy.checked);
 
   if (!name || !executablePath) {
     throw new Error('请填写名称和可执行文件路径。');
@@ -215,7 +248,8 @@ const upsertBrowser = () => {
     name,
     profileDirName: '',
     executablePath,
-    startUrl
+    startUrl,
+    enableProxy
   };
 
   const existingIndex = state.config.browsers.findIndex((item) => item.id === payload.id);
@@ -271,7 +305,8 @@ const handleActionClick = async (event) => {
       const result = await window.browserManagerApi.launchBrowser(browser.id);
       state.runningBrowserIds.add(browser.id);
       renderList();
-      setStatus(`已启动：${browser.name}（目录：${result.profilePath}）`, 'success');
+      const proxyText = result.proxy ? `，代理：${result.proxy}` : '';
+      setStatus(`已启动：${browser.name}（目录：${result.profilePath}${proxyText}）`, 'success');
       return;
     }
 
@@ -287,18 +322,56 @@ const handleActionClick = async (event) => {
 };
 
 const bindEvents = () => {
-  refs.pickDataRootPath.addEventListener('click', async () => {
+  refs.openSettings.addEventListener('click', () => {
+    openSettings();
+    setActiveSettingsTab('storage');
+  });
+
+  refs.storageSummary.addEventListener('click', () => {
+    openSettings();
+    setActiveSettingsTab('storage');
+  });
+
+  refs.closeSettings.addEventListener('click', () => {
+    closeSettings();
+  });
+
+  refs.settingsOverlay.addEventListener('click', (event) => {
+    if (event.target === refs.settingsOverlay) {
+      closeSettings();
+    }
+  });
+
+  refs.settingsOverlay.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    if (target.classList.contains('nav-item')) {
+      const tab = target.dataset.tab;
+      if (tab) {
+        setActiveSettingsTab(tab);
+      }
+    }
+  });
+
+  refs.settingsPickDataRootPath.addEventListener('click', async () => {
     const selected = await window.browserManagerApi.pickDirectory();
     if (!selected) {
       return;
     }
-    refs.dataRootPath.value = selected;
-    state.config.dataRootPath = selected;
+    refs.settingsDataRootPath.value = selected;
+  });
+
+  refs.saveSettings.addEventListener('click', async () => {
+    state.config.dataRootPath = refs.settingsDataRootPath.value.trim();
+    state.config.proxyApiUrl = refs.settingsProxyApiUrl.value.trim();
     try {
       await persistConfig();
-      setStatus('存储目录已更新。', 'success');
+      closeSettings();
+      setStatus('设置已保存。', 'success');
     } catch (error) {
-      setStatus(error.message || '保存存储目录失败。', 'error');
+      setStatus(error.message || '保存设置失败。', 'error');
     }
   });
 
@@ -360,16 +433,6 @@ const bindEvents = () => {
     setStatus('已清空表单。');
   });
 
-  refs.dataRootPath.addEventListener('change', async () => {
-    state.config.dataRootPath = refs.dataRootPath.value.trim();
-    try {
-      await persistConfig();
-      setStatus('存储目录已更新。', 'success');
-    } catch (error) {
-      setStatus(error.message || '保存存储目录失败。', 'error');
-    }
-  });
-
   refs.browserList.addEventListener('click', handleActionClick);
 };
 
@@ -381,7 +444,6 @@ const bootstrap = async () => {
     ]);
     state.config = config;
     state.runningBrowserIds = new Set(runningBrowserIds);
-    refs.dataRootPath.value = config.dataRootPath || '';
     refs.executablePath.value = config.defaultExecutablePath || '';
     renderStorageSummary();
     renderList();

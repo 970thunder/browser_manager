@@ -50,6 +50,12 @@ body {
   gap: 16px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 h1 {
   margin: 0;
   font-size: 25px;
@@ -75,6 +81,10 @@ p {
   font-size: 12px;
   color: #39517f;
   white-space: nowrap;
+}
+
+.header-actions .chip {
+  cursor: pointer;
 }
 
 .chip-running {
@@ -189,6 +199,50 @@ input:disabled {
   box-shadow: -6px -6px 16px rgba(255, 255, 255, 0.78), 8px 8px 16px rgba(125, 145, 178, 0.26);
 }
 
+.btn.icon {
+  padding: 9px 12px;
+  color: #3e5688;
+  background: rgba(235, 242, 252, 0.9);
+  box-shadow: -6px -6px 16px rgba(255, 255, 255, 0.78), 8px 8px 16px rgba(125, 145, 178, 0.24);
+}
+
+.toggle-field {
+  justify-content: flex-end;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 56px;
+  height: 34px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(220, 232, 247, 0.9);
+  box-shadow: inset 4px 4px 9px rgba(121, 138, 170, 0.22), inset -4px -4px 10px rgba(255, 255, 255, 0.74);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  display: none;
+}
+
+.toggle-ui {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: -6px -6px 14px rgba(255, 255, 255, 0.78), 7px 7px 14px rgba(116, 138, 175, 0.28);
+  transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.toggle input:checked + .toggle-ui {
+  transform: translateX(22px);
+  background: linear-gradient(135deg, #70b7ff, #5e86ff);
+  box-shadow: 0 8px 16px rgba(79, 118, 214, 0.34);
+}
+
 .btn[disabled] {
   opacity: 0.7;
   cursor: not-allowed;
@@ -220,6 +274,129 @@ input:disabled {
 .install-progress-text {
   font-size: 11px;
   color: #4d6086;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(18, 25, 40, 0.18);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.modal {
+  width: min(920px, 96vw);
+  height: min(560px, 84vh);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.modal-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 12px;
+}
+
+.modal-nav {
+  border-radius: 18px;
+  padding: 10px;
+  background: rgba(238, 244, 252, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: -6px -6px 14px rgba(255, 255, 255, 0.7), 8px 8px 16px rgba(121, 144, 181, 0.24);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav-item {
+  border: none;
+  border-radius: 14px;
+  padding: 11px 12px;
+  text-align: left;
+  color: #3e5688;
+  background: rgba(235, 242, 252, 0.92);
+  box-shadow: -6px -6px 16px rgba(255, 255, 255, 0.78), 8px 8px 16px rgba(125, 145, 178, 0.22);
+  cursor: pointer;
+  font-weight: 700;
+  transition: transform 170ms ease, box-shadow 170ms ease, filter 170ms ease;
+}
+
+.nav-item:active {
+  transform: translateY(1px) scale(0.985);
+  box-shadow: inset 5px 5px 11px rgba(95, 114, 145, 0.26), inset -4px -4px 10px rgba(255, 255, 255, 0.75);
+}
+
+.nav-item.active {
+  color: #1d3f86;
+  background: rgba(227, 237, 251, 0.98);
+  box-shadow: var(--ring), var(--shadow-press);
+}
+
+.modal-panel {
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(238, 244, 252, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: -6px -6px 14px rgba(255, 255, 255, 0.7), 8px 8px 16px rgba(121, 144, 181, 0.24);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tab {
+  display: none;
+}
+
+.tab.active {
+  display: block;
+}
+
+.tab-title {
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.tab-desc {
+  color: var(--text-sub);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.modal-inline {
+  align-items: center;
+}
+
+.hint {
+  color: #6a7aa0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.modal-actions {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .btn.launch {

@@ -9,7 +9,11 @@
     "check:syntax": "node --check main.js && node --check preload.js && node --check renderer.js",
     "build:mac": "electron-builder --mac",
     "build:mac:pkg": "electron-builder --mac pkg",
-    "build:win": "electron-builder --win nsis"
+    "build:win": "electron-builder --win nsis",
+    "build:win:ia32": "electron-builder --win nsis --ia32",
+    "build:win:x64": "electron-builder --win nsis --x64",
+    "build:win:all": "electron-builder --win nsis --ia32 --x64 --arm64",
+    "release:manifest": "node scripts/generate-release.js"
   },
   "author": "",
   "license": "MIT",
@@ -42,7 +46,14 @@
     },
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": [
+            "ia32",
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "artifactName": "${productName}-${version}-win-${arch}.${ext}"
     },

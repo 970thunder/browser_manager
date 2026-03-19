@@ -13,23 +13,26 @@
           <h1>浏览器多开管理器</h1>
           <p>管理浏览器实例，配置独立数据目录，并一键启动指定页面</p>
         </div>
-        <div class="chip" id="storageSummary">未设置存储目录</div>
+        <div class="header-actions">
+          <div class="chip" id="storageSummary">未设置存储目录</div>
+          <button id="openSettings" class="btn icon">设置</button>
+        </div>
       </header>
 
       <main class="layout">
         <section class="panel glass-card">
-          <h2>全局设置</h2>
-          <label class="field-label">浏览器数据存储路径</label>
-          <div class="inline-group">
-            <input id="dataRootPath" type="text" placeholder="请选择存储目录" />
-            <button id="pickDataRootPath" class="btn secondary">选择目录</button>
-          </div>
-
-          <h2 class="section-title">浏览器配置</h2>
+          <h2>浏览器配置</h2>
           <div class="form-grid">
             <label class="field">
               <span>名称</span>
               <input id="browserName" type="text" placeholder="例如：Chrome 工作环境" />
+            </label>
+            <label class="field toggle-field">
+              <span>启用代理</span>
+              <label class="toggle">
+                <input id="enableProxy" type="checkbox" />
+                <span class="toggle-ui"></span>
+              </label>
             </label>
             <label class="field field-wide">
               <span>浏览器可执行文件路径</span>
@@ -68,6 +71,51 @@
         </section>
       </main>
     </div>
+
+    <div id="settingsOverlay" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal glass-card" role="dialog" aria-modal="true" aria-label="设置">
+        <div class="modal-header">
+          <div class="modal-title">设置</div>
+          <button id="closeSettings" class="btn icon">关闭</button>
+        </div>
+        <div class="modal-body">
+          <nav class="modal-nav">
+            <button class="nav-item active" data-tab="storage">数据目录</button>
+            <button class="nav-item" data-tab="proxy">代理</button>
+          </nav>
+          <section class="modal-panel">
+            <div id="tab-storage" class="tab active">
+              <div class="tab-title">数据存放目录</div>
+              <div class="tab-desc">用于保存各浏览器实例的独立配置与缓存。</div>
+              <div class="inline-group modal-inline">
+                <input id="settingsDataRootPath" type="text" placeholder="请选择存储目录" />
+                <button id="settingsPickDataRootPath" class="btn secondary">选择目录</button>
+              </div>
+            </div>
+            <div id="tab-proxy" class="tab">
+              <div class="tab-title">代理配置</div>
+              <div class="tab-desc">填写代理提取 API 链接，启动时按需提取并应用到浏览器实例。</div>
+              <label class="field field-wide">
+                <span>代理 API 链接</span>
+                <input
+                  id="settingsProxyApiUrl"
+                  type="text"
+                  placeholder="例如：http://api.xxx.com/v1/get-ip?trade_no=...&secret=...&num=1&format=text"
+                />
+              </label>
+              <div class="hint">
+                建议不要在公开环境中暴露 secret；如已泄露，请及时在服务商后台轮换密钥。
+              </div>
+            </div>
+
+            <div class="modal-actions">
+              <button id="saveSettings" class="btn primary">保存设置</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
     <script src="./renderer.js"></script>
   </body>
   </html>

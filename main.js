@@ -2,6 +2,8 @@ const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const http = require('node:http');
+const https = require('node:https');
 const crypto = require('node:crypto');
 
 const CONFIG_FILE_NAME = 'browser-manager.config.json';
@@ -20,6 +22,7 @@ app.setPath('userData', APP_HOME_DIR);
 const createDefaultConfig = () => ({
   dataRootPath: path.join(APP_HOME_DIR, 'profiles'),
   defaultExecutablePath: '',
+  proxyApiUrl: '',
   browsers: []
 });
 
@@ -47,13 +50,26 @@ const normalizeConfig = (raw) => {
         name: String(item.name || ''),
         executablePath: String(item.executablePath || ''),
         startUrl: String(item.startUrl || ''),
-        profileDirName: String(item.profileDirName || '')
+        profileDirName: String(item.profileDirName || ''),
+        enableProxy: Boolean(item.enableProxy)
       }))
     : [];
+
+  let proxyApiUrl = String(safe.proxyApiUrl || '');
+  if (!proxyApiUrl && Array.isArray(safe.browsers)) {
+    for (const item of safe.browsers) {
+      const candidate = item && typeof item === 'object' ? String(item.proxyApiUrl || '').trim() : '';
+      if (candidate) {
+        proxyApiUrl = candidate;
+        break;
+      }
+    }
+  }
 
   return {
     dataRootPath: String(safe.dataRootPath || createDefaultConfig().dataRootPath),
     defaultExecutablePath: String(safe.defaultExecutablePath || ''),
+    proxyApiUrl,
     browsers
   };
 };
@@ -215,7 +231,8 @@ const validateBrowser = (browser) => {
     name: String(candidate.name || '').trim(),
     executablePath: String(candidate.executablePath || '').trim(),
     startUrl: String(candidate.startUrl || '').trim(),
-    profileDirName: String(candidate.profileDirName || '').trim()
+    profileDirName: String(candidate.profileDirName || '').trim(),
+    enableProxy: Boolean(candidate.enableProxy)
   };
 
   if (!normalized.profileDirName) {
@@ -233,10 +250,114 @@ const validateBrowser = (browser) => {
   return normalized;
 };
 
+const fetchText = async (urlString, timeoutMs = 12000) =>
+  new Promise((resolve, reject) => {
+    let url;
+    try {
+      url = new URL(urlString);
+    } catch (_) {
+      reject(new Error('代理 API 链接格式不正确。'));
+      return;
+    }
+
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      reject(new Error('代理 API 链接需使用 http 或 https。'));
+      return;
+    }
+
+    const requester = url.protocol === 'https:' ? https : http;
+    const req = requester.request(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'user-agent': 'BrowserManager/1.0'
+        }
+      },
+      (res) => {
+        const statusCode = res.statusCode || 0;
+        if (statusCode < 200 || statusCode >= 300) {
+          res.resume();
+          reject(new Error(`代理 API 请求失败：HTTP ${statusCode}`));
+          return;
+        }
+
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+      }
+    );
+
+    req.on('error', () => reject(new Error('代理 API 请求失败，请检查网络或链接是否可访问。')));
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error('timeout'));
+      reject(new Error('代理 API 请求超时。'));
+    });
+    req.end();
+  });
+
+const inferProxySchemeFromApiUrl = (proxyApiUrl) => {
+  try {
+    const url = new URL(proxyApiUrl);
+    const protocol = String(url.searchParams.get('protocol') || '').trim().toLowerCase();
+    if (protocol === '2' || protocol === 'socks' || protocol === 'socks5') {
+      return 'socks5';
+    }
+  } catch (_) {}
+  return 'http';
+};
+
+const parseProxyText = (text, proxyApiUrl) => {
+  const raw = String(text || '').trim();
+  if (!raw) {
+    throw new Error('代理 API 返回为空。');
+  }
+
+  const first = raw.split(/\s+/)[0].trim();
+  if (!first) {
+    throw new Error('代理 API 返回为空。');
+  }
+
+  if (first.includes('://')) {
+    return { proxyServer: first, display: first };
+  }
+
+  const scheme = inferProxySchemeFromApiUrl(proxyApiUrl);
+
+  if (first.includes('@')) {
+    return { proxyServer: `${scheme}://${first}`, display: first };
+  }
+
+  const parts = first.split(':');
+  if (parts.length !== 2 && parts.length !== 4) {
+    throw new Error('代理格式不正确，期望 ip:port。');
+  }
+
+  const host = parts[0];
+  const port = Number(parts[1]);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error('代理端口不正确。');
+  }
+
+  let auth = '';
+  if (parts.length === 4) {
+    const username = encodeURIComponent(parts[2] || '');
+    const password = encodeURIComponent(parts[3] || '');
+    if (username && password) {
+      auth = `${username}:${password}@`;
+    }
+  }
+
+  return { proxyServer: `${scheme}://${auth}${host}:${port}`, display: `${host}:${port}` };
+};
+
 ipcMain.handle('config:get', async () => readConfig());
 
 ipcMain.handle('config:save', async (_, config) => {
   const normalized = normalizeConfig(config);
+  if (normalized.proxyApiUrl && !/^https?:\/\//i.test(normalized.proxyApiUrl)) {
+    throw new Error('代理 API 链接需以 http:// 或 https:// 开头。');
+  }
   normalized.browsers = ensureUniqueProfileDirName(normalized.browsers).map(validateBrowser);
   await writeConfig(normalized);
   return normalized;
@@ -370,6 +491,16 @@ ipcMain.handle('browser:launch', async (_, browserId) => {
   }
 
   const args = [`--user-data-dir=${profilePath}`];
+  let usedProxy = '';
+  if (validBrowser.enableProxy) {
+    if (!config.proxyApiUrl) {
+      throw new Error('未配置全局代理 API 链接，请先在设置中填写。');
+    }
+    const proxyText = await fetchText(config.proxyApiUrl);
+    const parsed = parseProxyText(proxyText, config.proxyApiUrl);
+    usedProxy = parsed.display;
+    args.push(`--proxy-server=${parsed.proxyServer}`);
+  }
   if (validBrowser.startUrl) {
     args.push(validBrowser.startUrl);
   }
@@ -391,7 +522,8 @@ ipcMain.handle('browser:launch', async (_, browserId) => {
   return {
     profilePath,
     launched: true,
-    running: true
+    running: true,
+    proxy: usedProxy
   };
 });
 
