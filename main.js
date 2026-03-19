@@ -11,7 +11,7 @@ const APP_HOME_DIR = path.join(app.getPath('temp'), 'browser-manager-data');
 const CHROMIUM_CACHE_DIR = path.join(APP_HOME_DIR, 'chromium-kernel');
 const CHROMIUM_META_FILE = path.join(APP_HOME_DIR, 'chromium-meta.json');
 const runningBrowsers = new Map();
-const DEFAULT_FIRST_TAB_URL = 'https://ippure.com/';
+const DEFAULT_FIRST_TAB_URL = 'https://qifu.baidu.com/?activeKey=SEARCH_IP&trace=apistore_ip_aladdin&activeId=SEARCH_IP_ADDRESS&ip=';
 const PROXY_CACHE_TTL_MS = 3 * 60 * 1000;
 const kernelInstallState = {
   installing: false,
@@ -98,6 +98,25 @@ const validateHttpUrl = (urlText, fieldName) => {
   return text;
 };
 
+const validateUpdateSource = (value) => {
+  const text = String(value || '').trim();
+  if (!text) {
+    return '';
+  }
+  if (/^github:/i.test(text)) {
+    const repo = text.slice('github:'.length).trim();
+    if (!/^[^/]+\/[^/]+$/.test(repo)) {
+      throw new Error('GitHub 仓库格式不正确，应为 github:owner/repo。');
+    }
+    return `github:${repo}`;
+  }
+  return validateHttpUrl(text, '更新源');
+};
+
+const getGitHubLatestReleaseApi = (repo) => `https://api.github.com/repos/${repo}/releases/latest`;
+
+const normalizeGitHubVersionTag = (tag) => String(tag || '').trim().replace(/^v/i, '');
+
 const compareVersions = (a, b) => {
   const pa = String(a || '0').split('.').map((n) => Number(n) || 0);
   const pb = String(b || '0').split('.').map((n) => Number(n) || 0);
@@ -117,6 +136,34 @@ const fetchJson = async (urlString, timeoutMs = 12000) => {
   } catch (_) {
     throw new Error('更新清单解析失败（不是合法 JSON）。');
   }
+};
+
+const parseUpdatePayload = (data) => {
+  if (!data || typeof data !== 'object') {
+    throw new Error('更新源返回数据不正确。');
+  }
+
+  if (data.tag_name) {
+    const latestVersion = normalizeGitHubVersionTag(data.tag_name);
+    if (!latestVersion) {
+      throw new Error('GitHub Release 缺少 tag_name。');
+    }
+    return {
+      latestVersion,
+      downloadPageUrl: String(data.html_url || '').trim(),
+      notes: String(data.name || data.body || '').trim()
+    };
+  }
+
+  const latestVersion = String(data.version || '').trim();
+  if (!latestVersion) {
+    throw new Error('更新清单缺少 version 字段。');
+  }
+  return {
+    latestVersion,
+    downloadPageUrl: String(data.downloadPageUrl || '').trim(),
+    notes: String(data.notes || '').trim()
+  };
 };
 
 const fileExists = async (filePath) => {
@@ -502,7 +549,7 @@ ipcMain.handle('config:get', async () => readConfig());
 ipcMain.handle('config:save', async (_, config) => {
   const normalized = normalizeConfig(config);
   normalized.proxyApiUrl = validateHttpUrl(normalized.proxyApiUrl, '代理 API 链接');
-  normalized.updateManifestUrl = validateHttpUrl(normalized.updateManifestUrl, '更新清单 URL');
+  normalized.updateManifestUrl = validateUpdateSource(normalized.updateManifestUrl);
   normalized.browsers = ensureUniqueProfileDirName(normalized.browsers).map(validateBrowser);
   await writeConfig(normalized);
   return normalized;
@@ -516,21 +563,19 @@ ipcMain.handle('shell:open-external', async (_, urlText) => {
 
 ipcMain.handle('update:check', async (_, manifestUrl) => {
   const config = await readConfig();
-  const url = validateHttpUrl(manifestUrl || config.updateManifestUrl, '更新清单 URL');
-  if (!url) {
-    throw new Error('请先填写更新清单 URL。');
+  const source = validateUpdateSource(manifestUrl || config.updateManifestUrl);
+  if (!source) {
+    throw new Error('请先填写更新源（github:owner/repo 或一个 JSON 地址）。');
   }
 
+  const url = /^github:/i.test(source) ? getGitHubLatestReleaseApi(source.slice('github:'.length)) : source;
   const data = await fetchJson(url, 15000);
-  const latestVersion = String(data.version || '').trim();
-  if (!latestVersion) {
-    throw new Error('更新清单缺少 version 字段。');
-  }
-
+  const parsed = parseUpdatePayload(data);
+  const latestVersion = parsed.latestVersion;
   const currentVersion = app.getVersion();
   const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
-  const downloadPageUrl = validateHttpUrl(data.downloadPageUrl || '', '下载页 URL');
-  const notes = String(data.notes || '').trim();
+  const downloadPageUrl = parsed.downloadPageUrl ? validateHttpUrl(parsed.downloadPageUrl, '下载页 URL') : '';
+  const notes = String(parsed.notes || '').trim();
   return {
     currentVersion,
     latestVersion,

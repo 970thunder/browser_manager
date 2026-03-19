@@ -126,8 +126,12 @@
                 </div>
               </div>
               <label class="field field-wide">
-                <span>更新清单 URL（可选）</span>
-                <input id="settingsUpdateManifestUrl" type="text" placeholder="例如：https://example.com/browsermanager/latest.json" />
+                <span>更新源（GitHub Release / JSON）</span>
+                <input
+                  id="settingsUpdateManifestUrl"
+                  type="text"
+                  placeholder="例如：github:owner/repo 或 https://example.com/browsermanager/latest.json"
+                />
               </label>
               <div class="inline-group">
                 <button id="checkUpdate" class="btn secondary">检查更新</button>
