@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('browserManagerApi', {
+  getAppInfo: () => ipcRenderer.invoke('app:get-info'),
   getConfig: () => ipcRenderer.invoke('config:get'),
   saveConfig: (config) => ipcRenderer.invoke('config:save', config),
   pickDirectory: () => ipcRenderer.invoke('dialog:pick-directory'),

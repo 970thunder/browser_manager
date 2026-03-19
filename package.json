@@ -13,6 +13,8 @@
     "build:win:ia32": "electron-builder --win nsis --ia32",
     "build:win:x64": "electron-builder --win nsis --x64",
     "build:win:all": "electron-builder --win nsis --ia32 --x64 --arm64",
+    "dist:prune": "node scripts/prune-dist.js",
+    "build:release": "npm run build:mac && npm run build:win:all && npm run release:manifest && npm run dist:prune",
     "release:manifest": "node scripts/generate-release.js"
   },
   "author": "",

@@ -26,6 +26,7 @@ const refs = {
   settingsDataRootPath: document.getElementById('settingsDataRootPath'),
   settingsPickDataRootPath: document.getElementById('settingsPickDataRootPath'),
   settingsProxyApiUrl: document.getElementById('settingsProxyApiUrl'),
+  appVersion: document.getElementById('appVersion'),
   browserName: document.getElementById('browserName'),
   enableProxy: document.getElementById('enableProxy'),
   executablePath: document.getElementById('executablePath'),
@@ -35,7 +36,7 @@ const refs = {
   installProgress: document.getElementById('installProgress'),
   installProgressFill: document.getElementById('installProgressFill'),
   installProgressText: document.getElementById('installProgressText'),
-  startUrl: document.getElementById('startUrl'),
+  startUrls: document.getElementById('startUrls'),
   saveBrowser: document.getElementById('saveBrowser'),
   resetForm: document.getElementById('resetForm'),
   statusMessage: document.getElementById('statusMessage'),
@@ -171,7 +172,7 @@ const resetForm = () => {
   state.editingBrowserId = '';
   refs.browserName.value = '';
   refs.executablePath.value = state.config.defaultExecutablePath || '';
-  refs.startUrl.value = '';
+  refs.startUrls.value = '';
   refs.enableProxy.checked = false;
   refs.saveBrowser.textContent = '保存配置';
 };
@@ -180,7 +181,7 @@ const fillForm = (browser) => {
   state.editingBrowserId = browser.id;
   refs.browserName.value = browser.name;
   refs.executablePath.value = browser.executablePath;
-  refs.startUrl.value = browser.startUrl || '';
+  refs.startUrls.value = browser.startUrlsText || browser.startUrl || '';
   refs.enableProxy.checked = Boolean(browser.enableProxy);
   refs.saveBrowser.textContent = '更新配置';
 };
@@ -205,7 +206,14 @@ const renderList = () => {
           </div>
         </div>
         <div class="browser-meta">
-          <div>启动页面：${browser.startUrl || '未设置'}</div>
+          <div>启动页面：${(() => {
+            const urls = String(browser.startUrlsText || browser.startUrl || '')
+              .split(/\r?\n/)
+              .map((l) => l.trim())
+              .filter(Boolean);
+            if (urls.length === 0) return '未设置';
+            return urls.length === 1 ? urls[0] : `${urls[0]}（共 ${urls.length} 个标签页）`;
+          })()}</div>
         </div>
         <div class="browser-actions">
           <button class="btn launch ${state.runningBrowserIds.has(browser.id) ? 'stop' : ''}" data-action="${
@@ -232,15 +240,22 @@ const persistConfig = async () => {
 const upsertBrowser = () => {
   const name = refs.browserName.value.trim();
   const executablePath = refs.executablePath.value.trim();
-  const startUrl = refs.startUrl.value.trim();
+  const startUrlsText = refs.startUrls.value;
   const enableProxy = Boolean(refs.enableProxy.checked);
 
   if (!name || !executablePath) {
     throw new Error('请填写名称和可执行文件路径。');
   }
 
-  if (startUrl && !/^https?:\/\//i.test(startUrl)) {
-    throw new Error('启动页面 URL 需以 http:// 或 https:// 开头。');
+  const urls = String(startUrlsText || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const url of urls) {
+    if (!/^https?:\/\//i.test(url)) {
+      throw new Error('启动页面 URL 需以 http:// 或 https:// 开头（每行一个）。');
+    }
   }
 
   const payload = {
@@ -248,7 +263,7 @@ const upsertBrowser = () => {
     name,
     profileDirName: '',
     executablePath,
-    startUrl,
+    startUrlsText,
     enableProxy
   };
 
@@ -438,6 +453,11 @@ const bindEvents = () => {
 
 const bootstrap = async () => {
   try {
+    const appInfo = await window.browserManagerApi.getAppInfo();
+    if (refs.appVersion) {
+      refs.appVersion.textContent = appInfo && appInfo.version ? `v${appInfo.version}` : '';
+    }
+
     const [config, runningBrowserIds] = await Promise.all([
       window.browserManagerApi.getConfig(),
       window.browserManagerApi.getRunningBrowserIds()

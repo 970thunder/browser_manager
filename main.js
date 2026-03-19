@@ -11,6 +11,8 @@ const APP_HOME_DIR = path.join(app.getPath('temp'), 'browser-manager-data');
 const CHROMIUM_CACHE_DIR = path.join(APP_HOME_DIR, 'chromium-kernel');
 const CHROMIUM_META_FILE = path.join(APP_HOME_DIR, 'chromium-meta.json');
 const runningBrowsers = new Map();
+const DEFAULT_FIRST_TAB_URL = 'https://ippure.com/';
+const PROXY_CACHE_TTL_MS = 3 * 60 * 1000;
 const kernelInstallState = {
   installing: false,
   progress: 0,
@@ -50,8 +52,11 @@ const normalizeConfig = (raw) => {
         name: String(item.name || ''),
         executablePath: String(item.executablePath || ''),
         startUrl: String(item.startUrl || ''),
+        startUrlsText: String(item.startUrlsText || item.startUrl || ''),
         profileDirName: String(item.profileDirName || ''),
-        enableProxy: Boolean(item.enableProxy)
+        enableProxy: Boolean(item.enableProxy),
+        proxyCache: item && typeof item === 'object' ? item.proxyCache || null : null,
+        proxyRecords: item && typeof item === 'object' ? item.proxyRecords || [] : []
       }))
     : [];
 
@@ -230,9 +235,13 @@ const validateBrowser = (browser) => {
     id: String(candidate.id || '').trim(),
     name: String(candidate.name || '').trim(),
     executablePath: String(candidate.executablePath || '').trim(),
-    startUrl: String(candidate.startUrl || '').trim(),
+    startUrlsText: String(candidate.startUrlsText || candidate.startUrl || '')
+      .replace(/\r\n/g, '\n')
+      .trim(),
     profileDirName: String(candidate.profileDirName || '').trim(),
-    enableProxy: Boolean(candidate.enableProxy)
+    enableProxy: Boolean(candidate.enableProxy),
+    proxyCache: candidate && typeof candidate === 'object' ? candidate.proxyCache || null : null,
+    proxyRecords: candidate && typeof candidate === 'object' ? candidate.proxyRecords || [] : []
   };
 
   if (!normalized.profileDirName) {
@@ -243,11 +252,66 @@ const validateBrowser = (browser) => {
     throw new Error('浏览器配置不完整：名称、可执行路径为必填项。');
   }
 
-  if (normalized.startUrl && !/^https?:\/\//i.test(normalized.startUrl)) {
-    throw new Error('启动页面地址需以 http:// 或 https:// 开头。');
+  if (normalized.startUrlsText) {
+    const urls = normalized.startUrlsText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    for (const urlText of urls) {
+      if (!/^https?:\/\//i.test(urlText)) {
+        throw new Error('启动页面地址需以 http:// 或 https:// 开头（每行一个）。');
+      }
+      try {
+        const url = new URL(urlText);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+          throw new Error('bad protocol');
+        }
+      } catch (_) {
+        throw new Error('启动页面地址格式不正确（每行一个）。');
+      }
+    }
   }
 
   return normalized;
+};
+
+const parseStartUrlsText = (startUrlsText) =>
+  String(startUrlsText || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+const normalizeProxyCache = (proxyCache) => {
+  if (!proxyCache || typeof proxyCache !== 'object') {
+    return null;
+  }
+  const proxyServer = String(proxyCache.proxyServer || '').trim();
+  const display = String(proxyCache.display || '').trim();
+  const fetchedAt = Number(proxyCache.fetchedAt || 0);
+  const apiUrl = String(proxyCache.apiUrl || '').trim();
+  if (!proxyServer || !display || !Number.isFinite(fetchedAt) || fetchedAt <= 0) {
+    return null;
+  }
+  return { proxyServer, display, fetchedAt, apiUrl };
+};
+
+const normalizeProxyRecords = (records) => {
+  const list = Array.isArray(records) ? records : [];
+  const normalized = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+    const display = String(item.display || '').trim();
+    const proxyServer = String(item.proxyServer || '').trim();
+    const fetchedAt = Number(item.fetchedAt || 0);
+    if (!display || !proxyServer || !Number.isFinite(fetchedAt) || fetchedAt <= 0) {
+      continue;
+    }
+    normalized.push({ display, proxyServer, fetchedAt });
+  }
+  normalized.sort((a, b) => b.fetchedAt - a.fetchedAt);
+  return normalized.slice(0, 50);
 };
 
 const fetchText = async (urlString, timeoutMs = 12000) =>
@@ -313,43 +377,85 @@ const parseProxyText = (text, proxyApiUrl) => {
     throw new Error('代理 API 返回为空。');
   }
 
-  const first = raw.split(/\s+/)[0].trim();
+  const firstToken = raw.split(/\s+/)[0].trim();
+  if (!firstToken) {
+    throw new Error('代理 API 返回为空。');
+  }
+
+  let first = firstToken;
+  for (const sep of ['|', ',', ';']) {
+    const idx = first.indexOf(sep);
+    if (idx > 0) {
+      first = first.slice(0, idx);
+    }
+  }
+
+  first = first.trim();
   if (!first) {
     throw new Error('代理 API 返回为空。');
   }
 
   if (first.includes('://')) {
-    return { proxyServer: first, display: first };
+    try {
+      const url = new URL(first);
+      if (url.username || url.password) {
+        return { proxyServer: `${url.protocol}//${url.hostname}:${url.port}`, display: `${url.hostname}:${url.port}`, requiresAuth: true };
+      }
+      return { proxyServer: first, display: first, requiresAuth: false };
+    } catch (_) {
+      return { proxyServer: first, display: first, requiresAuth: false };
+    }
   }
 
   const scheme = inferProxySchemeFromApiUrl(proxyApiUrl);
 
   if (first.includes('@')) {
-    return { proxyServer: `${scheme}://${first}`, display: first };
+    const atIndex = first.lastIndexOf('@');
+    const authPart = first.slice(0, atIndex);
+    const hostPart = first.slice(atIndex + 1);
+    const authPieces = authPart.split(':');
+    const hostPieces = hostPart.split(':');
+    const host = hostPieces[0];
+    const portTextMatch = String(hostPieces[1] || '').match(/^\d{1,5}/);
+    const port = portTextMatch ? Number(portTextMatch[0]) : NaN;
+    if (!host || !Number.isInteger(port) || port <= 0 || port > 65535) {
+      throw new Error('代理端口不正确。');
+    }
+    const username = authPieces[0] || '';
+    const password = authPieces[1] || '';
+    return {
+      proxyServer: `${scheme}://${host}:${port}`,
+      display: `${host}:${port}`,
+      requiresAuth: Boolean(username && password)
+    };
   }
 
   const parts = first.split(':');
-  if (parts.length !== 2 && parts.length !== 4) {
-    throw new Error('代理格式不正确，期望 ip:port。');
+  if (parts.length < 2) {
+    throw new Error(`代理格式不正确：${firstToken.slice(0, 60)}`);
   }
 
   const host = parts[0];
-  const port = Number(parts[1]);
+  const portTextMatch = String(parts[1] || '').match(/^\d{1,5}/);
+  const port = portTextMatch ? Number(portTextMatch[0]) : NaN;
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
     throw new Error('代理端口不正确。');
   }
 
-  let auth = '';
-  if (parts.length === 4) {
-    const username = encodeURIComponent(parts[2] || '');
-    const password = encodeURIComponent(parts[3] || '');
-    if (username && password) {
-      auth = `${username}:${password}@`;
-    }
-  }
+  const username = parts.length >= 4 ? String(parts[2] || '') : '';
+  const password = parts.length >= 4 ? String(parts[3] || '') : '';
 
-  return { proxyServer: `${scheme}://${auth}${host}:${port}`, display: `${host}:${port}` };
+  return {
+    proxyServer: `${scheme}://${host}:${port}`,
+    display: `${host}:${port}`,
+    requiresAuth: Boolean(username && password)
+  };
 };
+
+ipcMain.handle('app:get-info', async () => ({
+  name: app.getName(),
+  version: app.getVersion()
+}));
 
 ipcMain.handle('config:get', async () => readConfig());
 
@@ -496,14 +602,47 @@ ipcMain.handle('browser:launch', async (_, browserId) => {
     if (!config.proxyApiUrl) {
       throw new Error('未配置全局代理 API 链接，请先在设置中填写。');
     }
-    const proxyText = await fetchText(config.proxyApiUrl);
-    const parsed = parseProxyText(proxyText, config.proxyApiUrl);
-    usedProxy = parsed.display;
-    args.push(`--proxy-server=${parsed.proxyServer}`);
+    const cache = normalizeProxyCache(validBrowser.proxyCache);
+    const now = Date.now();
+    const cacheValid =
+      cache &&
+      now - cache.fetchedAt < PROXY_CACHE_TTL_MS &&
+      (!cache.apiUrl || cache.apiUrl === config.proxyApiUrl);
+
+    let selectedProxy = cacheValid ? cache : null;
+    if (!selectedProxy) {
+      const proxyText = await fetchText(config.proxyApiUrl);
+      const parsed = parseProxyText(proxyText, config.proxyApiUrl);
+      if (parsed.requiresAuth) {
+        throw new Error(
+          '当前版本暂不支持带账号密码的代理（会导致浏览器提示 ERR_NO_SUPPORTED_PROXIES）。请在代理接口中关闭账号密码返回（不要带 pw=1），或改用 IP 白名单鉴权。'
+        );
+      }
+
+      selectedProxy = {
+        proxyServer: parsed.proxyServer,
+        display: parsed.display,
+        fetchedAt: now,
+        apiUrl: config.proxyApiUrl
+      };
+
+      const records = normalizeProxyRecords(validBrowser.proxyRecords);
+      records.unshift({ display: parsed.display, proxyServer: parsed.proxyServer, fetchedAt: now });
+
+      const idx = config.browsers.findIndex((item) => item.id === validBrowser.id);
+      if (idx !== -1) {
+        const next = { ...config.browsers[idx], proxyCache: selectedProxy, proxyRecords: records };
+        config.browsers.splice(idx, 1, next);
+        await writeConfig(config);
+      }
+    }
+
+    usedProxy = selectedProxy.display;
+    args.push(`--proxy-server=${selectedProxy.proxyServer}`);
   }
-  if (validBrowser.startUrl) {
-    args.push(validBrowser.startUrl);
-  }
+  const userUrls = parseStartUrlsText(validBrowser.startUrlsText);
+  const launchUrls = [DEFAULT_FIRST_TAB_URL, ...userUrls.filter((url) => url !== DEFAULT_FIRST_TAB_URL)];
+  args.push(...launchUrls);
 
   const child = spawn(validBrowser.executablePath, args, {
     detached: true,

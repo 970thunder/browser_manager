@@ -147,6 +147,27 @@ input:disabled {
   background: rgba(220, 230, 244, 0.88);
 }
 
+.textarea {
+  width: 100%;
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: var(--text-main);
+  background: rgba(228, 237, 248, 0.98);
+  box-shadow: var(--shadow-press);
+  transition: box-shadow 140ms ease, transform 140ms ease;
+  min-height: 96px;
+  line-height: 1.55;
+  resize: none;
+}
+
+.textarea:focus {
+  box-shadow: var(--ring), var(--shadow-press);
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -306,6 +327,13 @@ input:disabled {
   font-size: 16px;
   font-weight: 800;
   letter-spacing: 0.01em;
+}
+
+.modal-version {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #5f6f90;
 }
 
 .modal-body {
