@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
@@ -25,6 +25,7 @@ const createDefaultConfig = () => ({
   dataRootPath: path.join(APP_HOME_DIR, 'profiles'),
   defaultExecutablePath: '',
   proxyApiUrl: '',
+  updateManifestUrl: '',
   browsers: []
 });
 
@@ -75,8 +76,47 @@ const normalizeConfig = (raw) => {
     dataRootPath: String(safe.dataRootPath || createDefaultConfig().dataRootPath),
     defaultExecutablePath: String(safe.defaultExecutablePath || ''),
     proxyApiUrl,
+    updateManifestUrl: String(safe.updateManifestUrl || ''),
     browsers
   };
+};
+
+const validateHttpUrl = (urlText, fieldName) => {
+  const text = String(urlText || '').trim();
+  if (!text) {
+    return '';
+  }
+  let url;
+  try {
+    url = new URL(text);
+  } catch (_) {
+    throw new Error(`${fieldName} 格式不正确。`);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`${fieldName} 需以 http:// 或 https:// 开头。`);
+  }
+  return text;
+};
+
+const compareVersions = (a, b) => {
+  const pa = String(a || '0').split('.').map((n) => Number(n) || 0);
+  const pb = String(b || '0').split('.').map((n) => Number(n) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const va = pa[i] || 0;
+    const vb = pb[i] || 0;
+    if (va > vb) return 1;
+    if (va < vb) return -1;
+  }
+  return 0;
+};
+
+const fetchJson = async (urlString, timeoutMs = 12000) => {
+  const text = await fetchText(urlString, timeoutMs);
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    throw new Error('更新清单解析失败（不是合法 JSON）。');
+  }
 };
 
 const fileExists = async (filePath) => {
@@ -461,12 +501,43 @@ ipcMain.handle('config:get', async () => readConfig());
 
 ipcMain.handle('config:save', async (_, config) => {
   const normalized = normalizeConfig(config);
-  if (normalized.proxyApiUrl && !/^https?:\/\//i.test(normalized.proxyApiUrl)) {
-    throw new Error('代理 API 链接需以 http:// 或 https:// 开头。');
-  }
+  normalized.proxyApiUrl = validateHttpUrl(normalized.proxyApiUrl, '代理 API 链接');
+  normalized.updateManifestUrl = validateHttpUrl(normalized.updateManifestUrl, '更新清单 URL');
   normalized.browsers = ensureUniqueProfileDirName(normalized.browsers).map(validateBrowser);
   await writeConfig(normalized);
   return normalized;
+});
+
+ipcMain.handle('shell:open-external', async (_, urlText) => {
+  const url = validateHttpUrl(urlText, '链接');
+  await shell.openExternal(url);
+  return true;
+});
+
+ipcMain.handle('update:check', async (_, manifestUrl) => {
+  const config = await readConfig();
+  const url = validateHttpUrl(manifestUrl || config.updateManifestUrl, '更新清单 URL');
+  if (!url) {
+    throw new Error('请先填写更新清单 URL。');
+  }
+
+  const data = await fetchJson(url, 15000);
+  const latestVersion = String(data.version || '').trim();
+  if (!latestVersion) {
+    throw new Error('更新清单缺少 version 字段。');
+  }
+
+  const currentVersion = app.getVersion();
+  const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+  const downloadPageUrl = validateHttpUrl(data.downloadPageUrl || '', '下载页 URL');
+  const notes = String(data.notes || '').trim();
+  return {
+    currentVersion,
+    latestVersion,
+    hasUpdate,
+    downloadPageUrl,
+    notes
+  };
 });
 
 ipcMain.handle('dialog:pick-directory', async () => {

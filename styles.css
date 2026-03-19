@@ -421,6 +421,36 @@ input:disabled {
   line-height: 1.4;
 }
 
+.update-grid {
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(235, 242, 252, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: inset 4px 4px 9px rgba(121, 138, 170, 0.18), inset -4px -4px 10px rgba(255, 255, 255, 0.68);
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.update-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.update-k {
+  color: #6a7aa0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.update-v {
+  color: #2f3c56;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .modal-actions {
   margin-top: auto;
   display: flex;

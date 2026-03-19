@@ -3,6 +3,7 @@ const state = {
     dataRootPath: '',
     defaultExecutablePath: '',
     proxyApiUrl: '',
+    updateManifestUrl: '',
     browsers: []
   },
   editingBrowserId: '',
@@ -26,6 +27,12 @@ const refs = {
   settingsDataRootPath: document.getElementById('settingsDataRootPath'),
   settingsPickDataRootPath: document.getElementById('settingsPickDataRootPath'),
   settingsProxyApiUrl: document.getElementById('settingsProxyApiUrl'),
+  settingsUpdateManifestUrl: document.getElementById('settingsUpdateManifestUrl'),
+  checkUpdate: document.getElementById('checkUpdate'),
+  openDownloadPage: document.getElementById('openDownloadPage'),
+  updateStatus: document.getElementById('updateStatus'),
+  currentVersionText: document.getElementById('currentVersionText'),
+  latestVersionText: document.getElementById('latestVersionText'),
   appVersion: document.getElementById('appVersion'),
   browserName: document.getElementById('browserName'),
   enableProxy: document.getElementById('enableProxy'),
@@ -65,11 +72,31 @@ const openSettings = () => {
   refs.settingsOverlay.setAttribute('aria-hidden', 'false');
   refs.settingsDataRootPath.value = state.config.dataRootPath || '';
   refs.settingsProxyApiUrl.value = state.config.proxyApiUrl || '';
+  refs.settingsUpdateManifestUrl.value = state.config.updateManifestUrl || '';
 };
 
 const closeSettings = () => {
   refs.settingsOverlay.classList.add('hidden');
   refs.settingsOverlay.setAttribute('aria-hidden', 'true');
+};
+
+const setUpdateStatus = (text) => {
+  if (refs.updateStatus) {
+    refs.updateStatus.textContent = String(text || '');
+  }
+};
+
+const renderUpdateInfo = (info) => {
+  if (!info) {
+    refs.latestVersionText.textContent = '-';
+    refs.openDownloadPage.classList.add('hidden');
+    return;
+  }
+
+  refs.latestVersionText.textContent = info.latestVersion ? `v${info.latestVersion}` : '-';
+  const showDownload = Boolean(info.downloadPageUrl);
+  refs.openDownloadPage.classList.toggle('hidden', !showDownload);
+  refs.openDownloadPage.dataset.url = info.downloadPageUrl || '';
 };
 
 const setActiveSettingsTab = (tab) => {
@@ -381,12 +408,45 @@ const bindEvents = () => {
   refs.saveSettings.addEventListener('click', async () => {
     state.config.dataRootPath = refs.settingsDataRootPath.value.trim();
     state.config.proxyApiUrl = refs.settingsProxyApiUrl.value.trim();
+    state.config.updateManifestUrl = refs.settingsUpdateManifestUrl.value.trim();
     try {
       await persistConfig();
       closeSettings();
       setStatus('设置已保存。', 'success');
     } catch (error) {
       setStatus(error.message || '保存设置失败。', 'error');
+    }
+  });
+
+  refs.checkUpdate.addEventListener('click', async () => {
+    refs.checkUpdate.disabled = true;
+    setUpdateStatus('正在检查更新...');
+    try {
+      const info = await window.browserManagerApi.checkUpdate(refs.settingsUpdateManifestUrl.value.trim());
+      refs.currentVersionText.textContent = info.currentVersion ? `v${info.currentVersion}` : '-';
+      renderUpdateInfo(info);
+      if (info.hasUpdate) {
+        setUpdateStatus(`发现新版本 v${info.latestVersion}${info.notes ? `：${info.notes}` : ''}`);
+      } else {
+        setUpdateStatus('当前已是最新版本。');
+      }
+    } catch (error) {
+      renderUpdateInfo(null);
+      setUpdateStatus(error.message || '检查更新失败。');
+    } finally {
+      refs.checkUpdate.disabled = false;
+    }
+  });
+
+  refs.openDownloadPage.addEventListener('click', async () => {
+    const url = refs.openDownloadPage.dataset.url;
+    if (!url) {
+      return;
+    }
+    try {
+      await window.browserManagerApi.openExternal(url);
+    } catch (error) {
+      setUpdateStatus(error.message || '打开下载页面失败。');
     }
   });
 
@@ -456,6 +516,9 @@ const bootstrap = async () => {
     const appInfo = await window.browserManagerApi.getAppInfo();
     if (refs.appVersion) {
       refs.appVersion.textContent = appInfo && appInfo.version ? `v${appInfo.version}` : '';
+    }
+    if (refs.currentVersionText) {
+      refs.currentVersionText.textContent = appInfo && appInfo.version ? `v${appInfo.version}` : '-';
     }
 
     const [config, runningBrowserIds] = await Promise.all([
