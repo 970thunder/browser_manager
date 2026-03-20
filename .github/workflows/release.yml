@@ -15,8 +15,6 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      CSC_LINK: ""
-      CSC_KEY_PASSWORD: ""
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -39,10 +37,6 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      CSC_LINK: ""
-      CSC_KEY_PASSWORD: ""
-      WIN_CSC_LINK: ""
-      WIN_CSC_KEY_PASSWORD: ""
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
