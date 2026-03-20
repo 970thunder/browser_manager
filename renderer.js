@@ -8,6 +8,7 @@ const state = {
   },
   editingBrowserId: '',
   runningBrowserIds: new Set(),
+  runningStatusTimer: null,
   kernelLookup: {
     found: false,
     candidates: [],
@@ -141,11 +142,30 @@ const syncRunningStatus = async () => {
 };
 
 const startRunningStatusWatcher = () => {
-  setInterval(async () => {
+  if (state.runningStatusTimer) {
+    return;
+  }
+  state.runningStatusTimer = setInterval(async () => {
     try {
       await syncRunningStatus();
     } catch (_) {}
-  }, 1200);
+  }, 2200);
+};
+
+const stopRunningStatusWatcher = () => {
+  if (!state.runningStatusTimer) {
+    return;
+  }
+  clearInterval(state.runningStatusTimer);
+  state.runningStatusTimer = null;
+};
+
+const syncRunningStatusWatcherWithVisibility = () => {
+  if (document.hidden) {
+    stopRunningStatusWatcher();
+    return;
+  }
+  startRunningStatusWatcher();
 };
 
 const pollInstallProgress = async () => {
@@ -559,7 +579,10 @@ const bootstrap = async () => {
     resetForm();
     await detectLocalKernel(false);
     renderKernelLookupState();
-    startRunningStatusWatcher();
+    syncRunningStatusWatcherWithVisibility();
+    document.addEventListener('visibilitychange', syncRunningStatusWatcherWithVisibility);
+    window.addEventListener('focus', syncRunningStatusWatcherWithVisibility);
+    window.addEventListener('blur', syncRunningStatusWatcherWithVisibility);
     setStatus('已加载配置。', 'success');
   } catch (error) {
     setStatus(error.message || '初始化失败。', 'error');

@@ -11,7 +11,6 @@ const APP_HOME_DIR = path.join(app.getPath('temp'), 'browser-manager-data');
 const CHROMIUM_CACHE_DIR = path.join(APP_HOME_DIR, 'chromium-kernel');
 const CHROMIUM_META_FILE = path.join(APP_HOME_DIR, 'chromium-meta.json');
 const runningBrowsers = new Map();
-const DEFAULT_FIRST_TAB_URL = 'https://qifu.baidu.com/?activeKey=SEARCH_IP&trace=apistore_ip_aladdin&activeId=SEARCH_IP_ADDRESS&ip=';
 const PROXY_CACHE_TTL_MS = 3 * 60 * 1000;
 const kernelInstallState = {
   installing: false,
@@ -809,8 +808,9 @@ ipcMain.handle('browser:launch', async (_, browserId) => {
     args.push(`--proxy-server=${selectedProxy.proxyServer}`);
   }
   const userUrls = parseStartUrlsText(validBrowser.startUrlsText);
-  const launchUrls = [DEFAULT_FIRST_TAB_URL, ...userUrls.filter((url) => url !== DEFAULT_FIRST_TAB_URL)];
-  args.push(...launchUrls);
+  if (userUrls.length) {
+    args.push(...userUrls);
+  }
 
   const child = spawn(validBrowser.executablePath, args, {
     detached: true,
