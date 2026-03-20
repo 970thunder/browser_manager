@@ -248,6 +248,11 @@ const renderList = () => {
           }">
             ${state.runningBrowserIds.has(browser.id) ? '停止' : '启动'}
           </button>
+          ${
+            browser.enableProxy
+              ? `<button class="btn rotate" data-action="rotate-proxy">换代理</button>`
+              : ''
+          }
           <button class="btn edit" data-action="edit">编辑</button>
           <button class="btn delete" data-action="delete">删除</button>
         </div>
@@ -352,6 +357,24 @@ const handleActionClick = async (event) => {
       renderList();
       const proxyText = result.proxy ? `，代理：${result.proxy}` : '';
       setStatus(`已启动：${browser.name}（目录：${result.profilePath}${proxyText}）`, 'success');
+      return;
+    }
+
+    if (action === 'rotate-proxy') {
+      if (!browser.enableProxy) {
+        throw new Error('该配置未启用代理。');
+      }
+      setStatus(`正在更换代理：${browser.name}...`);
+      const result = await window.browserManagerApi.rotateProxy(browser.id);
+      if (result && result.browser) {
+        const idx = state.config.browsers.findIndex((item) => item.id === result.browser.id);
+        if (idx !== -1) {
+          state.config.browsers.splice(idx, 1, result.browser);
+        }
+      }
+      renderList();
+      const hint = state.runningBrowserIds.has(browser.id) ? '（重启后生效）' : '（下次启动生效）';
+      setStatus(`已更换代理：${browser.name}，当前：${result.proxy}${hint}`, 'success');
       return;
     }
 

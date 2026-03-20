@@ -561,6 +561,52 @@ ipcMain.handle('shell:open-external', async (_, urlText) => {
   return true;
 });
 
+ipcMain.handle('proxy:rotate', async (_, browserId) => {
+  const browserIdText = String(browserId);
+  const config = await readConfig();
+  const browser = config.browsers.find((item) => item.id === browserIdText);
+  if (!browser) {
+    throw new Error('未找到对应浏览器配置。');
+  }
+
+  const validBrowser = validateBrowser(browser);
+  if (!validBrowser.enableProxy) {
+    throw new Error('该配置未启用代理。');
+  }
+  if (!config.proxyApiUrl) {
+    throw new Error('未配置全局代理 API 链接，请先在设置中填写。');
+  }
+
+  const proxyText = await fetchText(config.proxyApiUrl);
+  const parsed = parseProxyText(proxyText, config.proxyApiUrl);
+  if (parsed.requiresAuth) {
+    throw new Error(
+      '当前版本暂不支持带账号密码的代理（会导致浏览器提示 ERR_NO_SUPPORTED_PROXIES）。请在代理接口中关闭账号密码返回（不要带 pw=1），或改用 IP 白名单鉴权。'
+    );
+  }
+
+  const fetchedAt = Date.now();
+  const proxyCache = {
+    proxyServer: parsed.proxyServer,
+    display: parsed.display,
+    fetchedAt,
+    apiUrl: config.proxyApiUrl
+  };
+  const proxyRecords = normalizeProxyRecords(validBrowser.proxyRecords);
+  proxyRecords.unshift({ display: parsed.display, proxyServer: parsed.proxyServer, fetchedAt });
+
+  const idx = config.browsers.findIndex((item) => item.id === browserIdText);
+  if (idx !== -1) {
+    const next = { ...config.browsers[idx], proxyCache, proxyRecords };
+    config.browsers.splice(idx, 1, next);
+    await writeConfig(config);
+    return { proxy: parsed.display, fetchedAt, browser: next };
+  }
+
+  await writeConfig(config);
+  return { proxy: parsed.display, fetchedAt, browser: { ...browser, proxyCache, proxyRecords } };
+});
+
 ipcMain.handle('update:check', async (_, manifestUrl) => {
   const config = await readConfig();
   const source = validateUpdateSource(manifestUrl || config.updateManifestUrl);
@@ -712,7 +758,13 @@ ipcMain.handle('browser:launch', async (_, browserId) => {
     throw new Error('可执行文件不存在，请重新选择或安装 Chromium 内核。');
   }
 
-  const args = [`--user-data-dir=${profilePath}`];
+  const args = [
+    `--user-data-dir=${profilePath}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-default-apps',
+    '--disable-session-crashed-bubble'
+  ];
   let usedProxy = '';
   if (validBrowser.enableProxy) {
     if (!config.proxyApiUrl) {

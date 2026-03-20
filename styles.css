@@ -478,6 +478,11 @@ input:disabled {
   color: var(--danger);
 }
 
+.btn.rotate {
+  background: rgba(232, 245, 255, 0.95);
+  color: #1f5fa8;
+}
+
 .action-row {
   margin-top: 10px;
   display: flex;

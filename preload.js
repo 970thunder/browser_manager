@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('browserManagerApi', {
   saveConfig: (config) => ipcRenderer.invoke('config:save', config),
   checkUpdate: (manifestUrl) => ipcRenderer.invoke('update:check', manifestUrl),
   openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
+  rotateProxy: (browserId) => ipcRenderer.invoke('proxy:rotate', browserId),
   pickDirectory: () => ipcRenderer.invoke('dialog:pick-directory'),
   pickExecutable: () => ipcRenderer.invoke('dialog:pick-file'),
   detectLocalKernel: () => ipcRenderer.invoke('kernel:detect-local'),
