@@ -148,7 +148,7 @@ const startRunningStatusWatcher = () => {
   state.runningStatusTimer = setInterval(async () => {
     try {
       await syncRunningStatus();
-    } catch (_) {}
+    } catch (_) { }
   }, 2200);
 };
 
@@ -183,7 +183,7 @@ const startInstallProgressPolling = () => {
   state.kernelLookup.pollingTimer = setInterval(async () => {
     try {
       await pollInstallProgress();
-    } catch (_) {}
+    } catch (_) { }
   }, 260);
 };
 
@@ -254,25 +254,23 @@ const renderList = () => {
         </div>
         <div class="browser-meta">
           <div>启动页面：${(() => {
-            const urls = String(browser.startUrlsText || browser.startUrl || '')
-              .split(/\r?\n/)
-              .map((l) => l.trim())
-              .filter(Boolean);
-            if (urls.length === 0) return '未设置';
-            return urls.length === 1 ? urls[0] : `${urls[0]}（共 ${urls.length} 个标签页）`;
-          })()}</div>
+          const urls = String(browser.startUrlsText || browser.startUrl || '')
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter(Boolean);
+          if (urls.length === 0) return '未设置';
+          return urls.length === 1 ? urls[0] : `${urls[0]}（共 ${urls.length} 个标签页）`;
+        })()}</div>
         </div>
         <div class="browser-actions">
-          <button class="btn launch ${state.runningBrowserIds.has(browser.id) ? 'stop' : ''}" data-action="${
-            state.runningBrowserIds.has(browser.id) ? 'stop' : 'launch'
-          }">
+          <button class="btn launch ${state.runningBrowserIds.has(browser.id) ? 'stop' : ''}" data-action="${state.runningBrowserIds.has(browser.id) ? 'stop' : 'launch'
+        }">
             ${state.runningBrowserIds.has(browser.id) ? '停止' : '启动'}
           </button>
-          ${
-            browser.enableProxy
-              ? `<button class="btn rotate" data-action="rotate-proxy">换代理</button>`
-              : ''
-          }
+          ${browser.enableProxy
+          ? `<button class="btn rotate" data-action="rotate-proxy">换代理</button>`
+          : ''
+        }
           <button class="btn edit" data-action="edit">编辑</button>
           <button class="btn delete" data-action="delete">删除</button>
         </div>
@@ -442,6 +440,14 @@ const bindEvents = () => {
       }
     }
   });
+
+  const linkPurchaseProxy = document.getElementById('linkPurchaseProxy');
+  if (linkPurchaseProxy) {
+    linkPurchaseProxy.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.browserManagerApi.openExternal('http://www.91http.com/user/reg?ref=invite&invite_id=116904');
+    });
+  }
 
   refs.settingsPickDataRootPath.addEventListener('click', async () => {
     const selected = await window.browserManagerApi.pickDirectory();
