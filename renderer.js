@@ -285,16 +285,19 @@ const upsertBrowser = () => {
     }
   }
 
+  const id = state.editingBrowserId || crypto.randomUUID();
+  const existingIndex = state.config.browsers.findIndex((item) => item.id === id);
+  const existing = existingIndex === -1 ? null : state.config.browsers[existingIndex];
   const payload = {
-    id: state.editingBrowserId || crypto.randomUUID(),
+    ...(existing || {}),
+    id,
     name,
-    profileDirName: '',
     executablePath,
     startUrlsText,
-    enableProxy
+    enableProxy,
+    profileDirName: existing ? existing.profileDirName : ''
   };
 
-  const existingIndex = state.config.browsers.findIndex((item) => item.id === payload.id);
   if (existingIndex === -1) {
     state.config.browsers.unshift(payload);
   } else {
