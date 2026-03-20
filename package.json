@@ -1,6 +1,6 @@
 {
   "name": "browser-manager",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "桌面浏览器多开管理器",
   "productName": "BrowserManager",
   "main": "main.js",
