@@ -1,0 +1,72 @@
+{
+  "name": "browser-manager",
+  "version": "1.0.8",
+  "description": "桌面浏览器多开管理器",
+  "productName": "BrowserManager",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "check:syntax": "node --check main.js && node --check preload.js && node --check renderer.js && node --check automation-service.js && node --check plugin-store.js",
+    "build:mac": "electron-builder --mac --publish never",
+    "build:mac:pkg": "electron-builder --mac pkg --publish never",
+    "build:win": "electron-builder --win nsis --publish never",
+    "build:win:ia32": "electron-builder --win nsis --ia32 --publish never",
+    "build:win:x64": "electron-builder --win nsis --x64 --publish never",
+    "build:win:all": "electron-builder --win nsis --ia32 --x64 --arm64 --publish never",
+    "dist:prune": "node scripts/prune-dist.js",
+    "build:release": "npm run build:mac && npm run build:win:all && npm run release:manifest && npm run dist:prune",
+    "release:manifest": "node scripts/generate-release.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@puppeteer/browsers": "^2.10.2",
+    "exceljs": "^4.4.0",
+    "extract-zip": "^2.0.1",
+    "puppeteer-core": "^24.16.0",
+    "yauzl": "^3.2.0"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.sunny.browsermanager",
+    "productName": "BrowserManager",
+    "asar": true,
+    "files": [
+      "main.js",
+      "automation-service.js",
+      "plugin-store.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "styles.css",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip",
+        "pkg"
+      ],
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "ia32",
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('browserManagerApi', {
+  getAppInfo: () => ipcRenderer.invoke('app:get-info'),
+  getConfig: () => ipcRenderer.invoke('config:get'),
+  saveConfig: (config) => ipcRenderer.invoke('config:save', config),
+  checkUpdate: (manifestUrl) => ipcRenderer.invoke('update:check', manifestUrl),
+  openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
+  rotateProxy: (browserId) => ipcRenderer.invoke('proxy:rotate', browserId),
+  pickDirectory: () => ipcRenderer.invoke('dialog:pick-directory'),
+  pickExecutable: () => ipcRenderer.invoke('dialog:pick-file'),
+  detectLocalKernel: () => ipcRenderer.invoke('kernel:detect-local'),
+  getKernelInstallProgress: () => ipcRenderer.invoke('kernel:get-install-progress'),
+  launchBrowser: (browserId) => ipcRenderer.invoke('browser:launch', browserId),
+  stopBrowser: (browserId) => ipcRenderer.invoke('browser:stop', browserId),
+  getRunningBrowserIds: () => ipcRenderer.invoke('browser:list-running-ids'),
+  installChromiumKernel: () => ipcRenderer.invoke('kernel:install-chromium'),
+  listScripts: () => ipcRenderer.invoke('script:list'),
+  saveScript: (script) => ipcRenderer.invoke('script:save', script),
+  removeScript: (scriptId) => ipcRenderer.invoke('script:remove', scriptId),
+  startScriptRun: (scriptId) => ipcRenderer.invoke('script:start-run', scriptId),
+  runScriptOperation: (runId, method, payload) => ipcRenderer.invoke('script:operation', runId, method, payload),
+  finishScriptRun: (runId, status, detail) => ipcRenderer.invoke('script:finish-run', runId, status, detail),
+  cancelScriptRun: (runId) => ipcRenderer.invoke('script:cancel-run', runId),
+  listScriptRuns: (scriptId) => ipcRenderer.invoke('script:list-runs', scriptId),
+  getSmsTestingSettings: () => ipcRenderer.invoke('sms-testing:get-settings'),
+  saveSmsTestingSettings: (settings) => ipcRenderer.invoke('sms-testing:save-settings', settings),
+  uploadPlugin: () => ipcRenderer.invoke('plugin:upload'),
+  listPlugins: () => ipcRenderer.invoke('plugin:list'),
+  setPluginEnabled: (pluginId, enabled) => ipcRenderer.invoke('plugin:set-enabled', pluginId, enabled),
+  removePlugin: (pluginId) => ipcRenderer.invoke('plugin:remove', pluginId),
+  applyPluginsGlobally: () => ipcRenderer.invoke('plugin:apply-globally')
+});

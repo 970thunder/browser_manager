@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self'; img-src 'self' file: data:; connect-src 'none'; worker-src blob:" />
+    <title>浏览器多开管理器</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header glass-card">
+        <div>
+          <h1>浏览器多开管理器</h1>
+          <p>管理浏览器实例，配置独立数据目录，并一键启动指定页面</p>
+        </div>
+        <div class="header-actions">
+          <div class="chip" id="storageSummary">未设置存储目录</div>
+          <button id="openSettings" class="btn icon">设置</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel glass-card">
+          <h2>浏览器配置</h2>
+          <div class="form-grid">
+            <label class="field">
+              <span>名称</span>
+              <input id="browserName" type="text" placeholder="例如：Chrome 工作环境" />
+            </label>
+            <label class="field toggle-field">
+              <span>启用代理</span>
+              <label class="toggle">
+                <input id="enableProxy" type="checkbox" />
+                <span class="toggle-ui"></span>
+              </label>
+            </label>
+            <label class="field field-wide">
+              <span>浏览器可执行文件路径</span>
+              <div class="inline-group">
+                <input id="executablePath" type="text" placeholder="请选择浏览器可执行文件" />
+                <button id="detectKernel" class="btn secondary">查询本机内核</button>
+                <button id="pickExecutablePath" class="btn secondary">选择文件</button>
+                <button id="installKernel" class="btn secondary">安装内置 Chromium 内核</button>
+              </div>
+              <div id="installProgress" class="install-progress hidden">
+                <div class="install-progress-track">
+                  <div id="installProgressFill" class="install-progress-fill"></div>
+                </div>
+                <div id="installProgressText" class="install-progress-text">准备安装...</div>
+              </div>
+            </label>
+            <label class="field field-wide">
+              <span>启动页面 URL（每行一个，启动多个标签页）</span>
+              <textarea
+                id="startUrls"
+                class="textarea"
+                placeholder="例如：https://www.example.com&#10;https://www.baidu.com"
+              ></textarea>
+            </label>
+          </div>
+
+          <div class="action-row">
+            <button id="saveBrowser" class="btn primary">保存配置</button>
+            <button id="resetForm" class="btn secondary">清空表单</button>
+          </div>
+          <p id="statusMessage" class="status"></p>
+        </section>
+
+        <section class="panel glass-card">
+          <div class="panel-title">
+            <h2>浏览器列表</h2>
+            <span id="browserCount">0 个配置</span>
+          </div>
+          <div id="browserList" class="browser-list"></div>
+        </section>
+      </main>
+
+      <section class="feature-grid">
+        <section class="panel glass-card script-panel">
+          <div class="panel-title">
+            <div>
+              <h2>脚本中心</h2>
+              <p class="panel-desc">脚本只能调用受管浏览器与页面自动化 API，不具备 Node、文件或 Shell 权限。</p>
+            </div>
+            <div class="action-row">
+              <button id="importScriptFile" class="btn secondary">导入脚本文件</button>
+              <input id="scriptFileInput" type="file" accept=".js,.mjs,text/javascript" hidden />
+              <button id="newScript" class="btn secondary">新建脚本</button>
+            </div>
+          </div>
+          <div class="script-layout">
+            <div id="scriptList" class="script-list"></div>
+            <div class="script-editor">
+              <label class="field">
+                <span>脚本名称</span>
+                <input id="scriptName" type="text" placeholder="例如：批量登录检查" />
+              </label>
+              <label class="field field-wide">
+                <span>JavaScript 代码</span>
+                <textarea id="scriptCode" class="textarea code-editor" spellcheck="false" placeholder="const browser = await browserManager.browsers.create({ name: '自动化实例' });&#10;await browserManager.browsers.launch(browser.id);&#10;const page = await browserManager.pages.open(browser.id, 'https://example.com');&#10;await browserManager.log('页面已打开');"></textarea>
+              </label>
+              <div class="action-row">
+                <label class="script-run-count" for="scriptRunCount">
+                  <span>执行次数</span>
+                  <input id="scriptRunCount" type="number" min="1" max="5" value="1" />
+                </label>
+                <button id="saveScript" class="btn primary">保存脚本</button>
+                <button id="runScript" class="btn launch">运行</button>
+                <button id="stopScript" class="btn stop hidden">停止</button>
+                <button id="deleteScript" class="btn delete">删除</button>
+              </div>
+              <pre id="scriptLog" class="script-log">选择或新建一个脚本后运行，执行日志会显示在这里。</pre>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel glass-card plugin-panel">
+          <div class="panel-title">
+            <div>
+              <h2>插件商店</h2>
+              <p class="panel-desc">仅支持 Manifest V3 ZIP 插件。已启用插件会加载到所有受管浏览器实例。</p>
+            </div>
+            <button id="uploadPlugin" class="btn primary">上传 ZIP 插件</button>
+          </div>
+          <div id="pluginApplyHint" class="hint">插件变更后，运行中的浏览器需要重启才能生效。</div>
+          <div id="pluginList" class="plugin-list"></div>
+        </section>
+      </section>
+    </div>
+
+    <div id="settingsOverlay" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal glass-card" role="dialog" aria-modal="true" aria-label="设置">
+        <div class="modal-header">
+          <div class="modal-title">设置 <span id="appVersion" class="modal-version"></span></div>
+          <button id="closeSettings" class="btn icon">关闭</button>
+        </div>
+        <div class="modal-body">
+          <nav class="modal-nav">
+            <button class="nav-item active" data-tab="storage">数据目录</button>
+            <button class="nav-item" data-tab="proxy">代理</button>
+            <button class="nav-item" data-tab="sms-testing">短信测试</button>
+            <button class="nav-item" data-tab="update">更新</button>
+          </nav>
+          <section class="modal-panel">
+            <div id="tab-storage" class="tab active">
+              <div class="tab-title">数据存放目录</div>
+              <div class="tab-desc">用于保存各浏览器实例的独立配置与缓存。</div>
+              <div class="inline-group modal-inline">
+                <input id="settingsDataRootPath" type="text" placeholder="请选择存储目录" />
+                <button id="settingsPickDataRootPath" class="btn secondary">选择目录</button>
+              </div>
+            </div>
+            <div id="tab-proxy" class="tab">
+              <div class="tab-title">代理配置</div>
+              <div class="tab-desc">填写代理提取 API 链接，启动时按需提取并应用到浏览器实例。</div>
+              <label class="field field-wide">
+                <span>代理 API 链接</span>
+                <input
+                  id="settingsProxyApiUrl"
+                  type="text"
+                  placeholder="例如：http://api.xxx.com/v1/get-ip?trade_no=...&secret=...&num=1&format=text"
+                />
+              </label>
+              <div class="hint">
+                <p>建议不要在公开环境中暴露 secret；如已泄露，请及时在服务商后台轮换密钥。</p>
+                <p style="margin-top: 6px;">
+                  👉 <a href="#" id="linkPurchaseProxy" style="color: #64b4ff; text-decoration: none;">推荐：点击此处购买 91HTTP 代理 1元试用套餐</a>
+                </p>
+              </div>
+            </div>
+            <div id="tab-sms-testing" class="tab">
+              <div class="tab-title">易接码短信测试</div>
+              <div class="tab-desc">Token 只在本机加密保存，脚本不会接触 Token。请仅用于你有权测试的网站和测试账号。</div>
+              <label class="field field-wide">
+                <span>API Token（留空表示保留已保存 Token）</span>
+                <input id="settingsSmsToken" type="password" autocomplete="off" placeholder="粘贴易接码 API Token" />
+              </label>
+              <label class="field field-wide">
+                <span>短信关键词</span>
+                <input id="settingsSmsKeyword" type="text" maxlength="80" placeholder="例如：你的站点名称" />
+              </label>
+              <label class="field">
+                <span>轮询间隔（秒）</span>
+                <input id="settingsSmsPollSeconds" type="number" min="5" max="30" value="10" />
+              </label>
+              <div id="smsTestingStatus" class="hint"></div>
+            </div>
+            <div id="tab-update" class="tab">
+              <div class="tab-title">手动更新</div>
+              <div class="tab-desc">检查是否有新版本，并跳转到下载页面进行更新安装。</div>
+              <div class="update-grid">
+                <div class="update-row">
+                  <div class="update-k">当前版本</div>
+                  <div class="update-v" id="currentVersionText">-</div>
+                </div>
+                <div class="update-row">
+                  <div class="update-k">最新版本</div>
+                  <div class="update-v" id="latestVersionText">-</div>
+                </div>
+              </div>
+              <label class="field field-wide">
+                <span>更新源（GitHub Release / JSON）</span>
+                <input
+                  id="settingsUpdateManifestUrl"
+                  type="text"
+                  placeholder="例如：github:owner/repo 或 https://example.com/browsermanager/latest.json"
+                />
+              </label>
+              <div class="inline-group">
+                <button id="checkUpdate" class="btn secondary">检查更新</button>
+                <button id="openDownloadPage" class="btn secondary hidden">打开下载页面</button>
+              </div>
+              <div id="updateStatus" class="hint"></div>
+            </div>
+
+            <div class="modal-actions">
+              <button id="saveSettings" class="btn primary">保存设置</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script src="./renderer.js"></script>
+  </body>
+  </html>
